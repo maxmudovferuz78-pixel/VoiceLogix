@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <title>VoiceLogix AI - MVP Audio Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f4f6f6; }
+        .btn { padding: 15px 30px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; color: white; margin: 10px; }
+        .start { background-color: #005F73; }
+        .stop { background-color: #94D2BD; color: #2B2D42; }
+        #status { font-size: 20px; color: #6C757D; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>🎙 VoiceLogix AI (MVP Prototip)</h1>
+    <p>Mikrofonni yoqing va gapiring. Ovoz baytlari Django serveriga WebSocket orqali oqib boradi.</p>
+
+    <button id="startBtn" class="btn start">Mikrofonni Yoqish</button>
+    <button id="stopBtn" class="btn stop" disabled>O'chirish</button>
+
+    <div id="status">Status: Ulanmagan</div>
+
+    <script>
+        let socket;
+        let mediaRecorder;
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+
+        startBtn.onclick = async () => {
+            // 1. Django Channels WebSocket bilan aloqa o'rnatamiz
+            socket = new WebSocket('ws://' + window.location.host + '/ws/audio/');
+
+            socket.onopen = async () => {
+                statusDiv.innerText = "Status: Serverga ulandi. Mikrofon yozilmoqda...";
+                statusDiv.style.color = "green";
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+                // 2. Brauzerdan mikrofon audio oqimini olamiz
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Audioni 0.5 soniyalik mayda bo'laklarga (chunks) bo'lib yozadigan mediaRecorder
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
+                        // 3. Audio oqimining baytlarini (Binary) to'g'ridan-to'g'ri Djangoga yuboramiz
+                        socket.send(event.data);
+                    }
+                };
+
+                // Har 500 millisekundda (0.5s) ondataavailable funksiyasini chaqirib, audio paketini yuboradi
+                mediaRecorder.start(500);
+            };
+
+            socket.onerror = (error) => {
+                console.error("WebSocket Xatolik:", error);
+                statusDiv.innerText = "Status: Ulanishda xatolik yuz berdi!";
+                statusDiv.style.color = "red";
+            };
+
+            // Serverdan qaytib kelgan javobni tutib olish (Echo testi uchun)
+            socket.onmessage = (event) => {
+                console.log("Serverdan audio yoki matn keldi.");
+            };
+        };
+
+        stopBtn.onclick = () => {
+            if (mediaRecorder) mediaRecorder.stop();
+            if (socket) socket.close();
+
+            statusDiv.innerText = "Status: Aloqa uzildi.";
+            statusDiv.style.color = "#6C757D";
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        };
+    </script>
+</body>
+</html>
