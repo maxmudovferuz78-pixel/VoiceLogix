@@ -80,7 +80,10 @@
 
   {% if result %}
   <div class="result">
-    <span class="result-label">Natija</span>
+    <span class="result-label">
+      Natija
+      {% if result.engine == "gemini" %}(Gemini AI){% elif result.engine == "google_free" %}(zaxira: Google Tarjimon){% endif %}
+    </span>
     {{ result.translated_text }}
   </div>
   {% endif %}
