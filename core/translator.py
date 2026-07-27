@@ -33,7 +33,22 @@ QOIDALAR:
 {glossary_as_prompt_text()}
 
 4. Agar matn savol bo'lsa, tarjimasi ham savol shaklida bo'lsin.
-5. Rasmiy-professional ohangda yoz (bu ish suhbati, do'stona chat emas)."""
+5. Rasmiy-professional ohangda yoz (bu ish suhbati, do'stona chat emas).
+6. Javobni imkon qadar QISQA va TABIIY yoz — ortiqcha so'z qo'shma.
+
+NAMUNALAR (shu uslubda tarjima qil):
+O'zbekcha: "Yukni qachon olib ketasiz?"
+Inglizcha: "When are you picking up the load?"
+
+O'zbekcha: "Kutish haqi qancha bo'ladi?"
+Inglizcha: "How much is the detention fee?"
+
+Inglizcha: "What's the rate for this load?"
+O'zbekcha: "Bu yuk uchun tarif qancha?"
+
+Inglizcha: "The driver is running late, ETA is 6 PM."
+O'zbekcha: "Haydovchi kechikmoqda, yetib kelish vaqti soat 18:00."
+"""
 
 
 def detect_direction(text):
@@ -61,12 +76,12 @@ def _translate_with_gemini(text, direction):
     payload = {
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": instruction}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 512},
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 300},
     }
 
     try:
         response = requests.post(
-            GEMINI_URL, params={"key": api_key}, json=payload, timeout=20
+            GEMINI_URL, params={"key": api_key}, json=payload, timeout=15
         )
         response.raise_for_status()
         data = response.json()
