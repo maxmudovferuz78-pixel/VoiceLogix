@@ -21,10 +21,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 load_dotenv(PROJECT_ROOT / ".env")
 
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, CallbackQueryHandler,
+    ContextTypes, filters,
+)
 
-from core import translate
+from core import translate, READY_PHRASES, init_db, save_translation, get_recent_history
 from core.voice import transcribe_and_translate_audio, synthesize_speech
 
 logging.basicConfig(
@@ -32,6 +35,22 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+
+def _remember(user_id, original, translated, direction="uz_to_en", engine="gemini", is_voice=False):
+    """Tarjimani ma'lumotlar bazasiga (PostgreSQL/SQLite) yozadi."""
+    try:
+        save_translation(
+            source="telegram",
+            user_identifier=user_id,
+            original_text=original,
+            translated_text=translated,
+            direction=direction,
+            engine=engine,
+            is_voice=is_voice,
+        )
+    except Exception:
+        logger.exception("Tarixni bazaga yozishda xatolik")
 
 
 WELCOME_MESSAGE = (
@@ -43,7 +62,8 @@ WELCOME_MESSAGE = (
     "🔹 \"Yukni qachon olib ketasiz?\"\n"
     "🔹 \"What's the detention rate?\"\n\n"
     "Buyruqlar:\n"
-    "/start — botni qayta ishga tushirish\n"
+    "/phrases — tayyor iboralar (tugma bosib yuborish)\n"
+    "/history — oxirgi tarjimalaringiz\n"
     "/help — yordam"
 )
 
@@ -62,13 +82,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
 
-    # Foydalanuvchiga "yozmoqda..." holatini ko'rsatamiz (chat action)
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
         result = translate(user_text)
         translated_text = result["translated_text"]
         engine = result["engine"]
+
+        _remember(
+            update.effective_user.id, user_text, translated_text,
+            direction=result["direction"], engine=engine, is_voice=False,
+        )
 
         direction_label = (
             "🇺🇿 → 🇺🇸" if result["direction"] == "uz_to_en" else "🇺🇸 → 🇺🇿"
@@ -78,7 +102,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = f"{direction_label}\n\n{translated_text}\n\n_({engine_label})_"
         await update.message.reply_text(reply, parse_mode="Markdown")
 
-    except Exception as exc:
+    except Exception:
         logger.exception("Tarjima qilishda xatolik yuz berdi")
         await update.message.reply_text(
             "⚠️ Kechirasiz, tarjima qilishda xatolik yuz berdi. "
@@ -90,20 +114,22 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="record_voice")
 
     try:
-        # 1. Telegram'dan ovozli xabarni yuklab olamiz (.ogg format)
         voice_file = await update.message.voice.get_file()
         audio_bytes = bytes(await voice_file.download_as_bytearray())
 
-        # 2. Gemini orqali tilni aniqlab, tarjima qilamiz
         result = transcribe_and_translate_audio(audio_bytes, mime_type="audio/ogg")
         detected_lang = result["detected_language"]
         translated_text = result["translated_text"]
         target_lang = "en" if detected_lang == "uz" else "uz"
 
-        # 3. Natijani ovozga aylantiramiz
+        direction = "uz_to_en" if detected_lang == "uz" else "en_to_uz"
+        _remember(
+            update.effective_user.id, "(ovozli xabar)", translated_text,
+            direction=direction, engine="gemini_voice", is_voice=True,
+        )
+
         audio_out = synthesize_speech(translated_text, target_lang)
 
-        # 4. Matn va ovozni foydalanuvchiga yuboramiz
         direction_label = "🇺🇿 → 🇺🇸" if detected_lang == "uz" else "🇺🇸 → 🇺🇿"
         await update.message.reply_text(f"{direction_label}\n\n{translated_text}")
 
@@ -119,6 +145,63 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def phrases_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    buttons = [
+        [InlineKeyboardButton(short_label, callback_data=f"phrase:{i}")]
+        for i, (full_text, short_label) in enumerate(READY_PHRASES)
+    ]
+    await update.message.reply_text(
+        "Kerakli iborani tanlang — men darhol tarjima qilib beraman:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+async def phrase_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    try:
+        index = int(query.data.split(":")[1])
+        phrase_text = READY_PHRASES[index][0]
+    except (IndexError, ValueError):
+        await query.message.reply_text("⚠️ Ibora topilmadi, qaytadan /phrases yozing.")
+        return
+
+    result = translate(phrase_text)
+    translated_text = result["translated_text"]
+    _remember(
+        query.from_user.id, phrase_text, translated_text,
+        direction=result["direction"], engine=result["engine"], is_voice=False,
+    )
+
+    await query.message.reply_text(f"🇺🇿 {phrase_text}\n🇺🇸 {translated_text}")
+
+
+async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    try:
+        history = get_recent_history(source="telegram", user_identifier=user_id, limit=5)
+    except Exception:
+        logger.exception("Tarixni bazadan o'qishda xatolik")
+        await update.message.reply_text(
+            "⚠️ Tarixni yuklashda xatolik yuz berdi. Birozdan so'ng qayta urinib ko'ring."
+        )
+        return
+
+    if not history:
+        await update.message.reply_text(
+            "Hali hech narsa tarjima qilmadingiz. Menga matn yoki ovozli xabar yuboring."
+        )
+        return
+
+    lines = ["📜 *Oxirgi tarjimalaringiz:*\n"]
+    for i, item in enumerate(history, start=1):
+        lines.append(f"{i}. {item['original']}\n   → {item['translated']}\n")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 def main():
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not bot_token:
@@ -127,10 +210,16 @@ def main():
             "faylida TELEGRAM_BOT_TOKEN=... qatorini sozlang."
         )
 
+    logger.info("Ma'lumotlar bazasi jadvallarini tekshirilmoqda...")
+    init_db()
+
     app = Application.builder().token(bot_token).build()
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("phrases", phrases_command))
+    app.add_handler(CommandHandler("history", history_command))
+    app.add_handler(CallbackQueryHandler(phrase_button_callback, pattern=r"^phrase:\d+$"))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
