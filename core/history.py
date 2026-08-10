@@ -27,3 +27,25 @@ def save_translation(source, user_identifier, original_text, translated_text,
         session.close()
 
 
+def get_recent_history(source, user_identifier, limit=5):
+    """Foydalanuvchining oxirgi N ta tarjimasini qaytaradi (eng yangisi birinchi)."""
+    session = get_session()
+    try:
+        records = (
+            session.query(TranslationHistory)
+            .filter_by(source=source, user_identifier=str(user_identifier))
+            .order_by(TranslationHistory.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "original": r.original_text,
+                "translated": r.translated_text,
+                "direction": r.direction,
+                "created_at": r.created_at,
+            }
+            for r in records
+        ]
+    finally:
+        session.close()
