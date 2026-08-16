@@ -37,3 +37,33 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _remember(user_id, original, translated, direction="uz_to_en", engine="gemini", is_voice=False):
+    """Tarjimani ma'lumotlar bazasiga (PostgreSQL/SQLite) yozadi."""
+    try:
+        save_translation(
+            source="telegram",
+            user_identifier=user_id,
+            original_text=original,
+            translated_text=translated,
+            direction=direction,
+            engine=engine,
+            is_voice=is_voice,
+        )
+    except Exception:
+        logger.exception("Tarixni bazaga yozishda xatolik")
+
+
+WELCOME_MESSAGE = (
+    "👋 Assalomu alaykum! Men *Logistika Tarjimon* botiman.\n\n"
+    "Menga o'zbekcha yoki inglizcha matn YOKI ovozli xabar yuboring — "
+    "men uni logistika atamalarini hisobga olib tarjima qilib beraman.\n"
+    "Ovozli xabar yuborsangiz, tarjimani ham ovozda eshitasiz!\n\n"
+    "Masalan:\n"
+    "🔹 \"Yukni qachon olib ketasiz?\"\n"
+    "🔹 \"What's the detention rate?\"\n\n"
+    "Buyruqlar:\n"
+    "/phrases — tayyor iboralar (tugma bosib yuborish)\n"
+    "/history — oxirgi tarjimalaringiz\n"
+    "/help — yordam"
+)
+
