@@ -79,3 +79,33 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+
+    try:
+        result = translate(user_text)
+        translated_text = result["translated_text"]
+        engine = result["engine"]
+
+        _remember(
+            update.effective_user.id, user_text, translated_text,
+            direction=result["direction"], engine=engine, is_voice=False,
+        )
+
+        direction_label = (
+            "🇺🇿 → 🇺🇸" if result["direction"] == "uz_to_en" else "🇺🇸 → 🇺🇿"
+        )
+        engine_label = "Gemini AI" if engine == "gemini" else "Google Tarjimon (zaxira)"
+
+        reply = f"{direction_label}\n\n{translated_text}\n\n_({engine_label})_"
+        await update.message.reply_text(reply, parse_mode="Markdown")
+
+    except Exception:
+        logger.exception("Tarjima qilishda xatolik yuz berdi")
+        await update.message.reply_text(
+            "⚠️ Kechirasiz, tarjima qilishda xatolik yuz berdi. "
+            "Birozdan so'ng qayta urinib ko'ring."
+        )
+
