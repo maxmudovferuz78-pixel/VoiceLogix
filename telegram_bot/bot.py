@@ -67,3 +67,15 @@ WELCOME_MESSAGE = (
     "/help — yordam"
 )
 
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(WELCOME_MESSAGE, parse_mode="Markdown")
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Shunchaki menga matn yozing (o'zbekcha yoki inglizcha) — "
+        "men avtomatik tilni aniqlab, tarjima qilib beraman."
+    )
+
+
