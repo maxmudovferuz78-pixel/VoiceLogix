@@ -127,3 +127,21 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             update.effective_user.id, "(ovozli xabar)", translated_text,
             direction=direction, engine="gemini_voice", is_voice=True,
         )
+
+        audio_out = synthesize_speech(translated_text, target_lang)
+
+        direction_label = "🇺🇿 → 🇺🇸" if detected_lang == "uz" else "🇺🇸 → 🇺🇿"
+        await update.message.reply_text(f"{direction_label}\n\n{translated_text}")
+
+        audio_stream = io.BytesIO(audio_out)
+        audio_stream.name = "tarjima.mp3"
+        await update.message.reply_audio(audio=audio_stream)
+
+    except Exception:
+        logger.exception("Ovozli xabarni qayta ishlashda xatolik yuz berdi")
+        await update.message.reply_text(
+            "⚠️ Kechirasiz, ovozli xabarni qayta ishlashda xatolik yuz berdi. "
+            "Birozdan so'ng qayta urinib ko'ring."
+        )
+
+
