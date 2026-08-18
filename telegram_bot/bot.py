@@ -109,3 +109,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Birozdan so'ng qayta urinib ko'ring."
         )
 
+
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="record_voice")
+
+    try:
+        voice_file = await update.message.voice.get_file()
+        audio_bytes = bytes(await voice_file.download_as_bytearray())
+
+        result = transcribe_and_translate_audio(audio_bytes, mime_type="audio/ogg")
+        detected_lang = result["detected_language"]
+        translated_text = result["translated_text"]
+        target_lang = "en" if detected_lang == "uz" else "uz"
+
+        direction = "uz_to_en" if detected_lang == "uz" else "en_to_uz"
+        _remember(
+            update.effective_user.id, "(ovozli xabar)", translated_text,
+            direction=direction, engine="gemini_voice", is_voice=True,
+        )
