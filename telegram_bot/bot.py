@@ -145,3 +145,32 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def phrases_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    buttons = [
+        [InlineKeyboardButton(short_label, callback_data=f"phrase:{i}")]
+        for i, (full_text, short_label) in enumerate(READY_PHRASES)
+    ]
+    await update.message.reply_text(
+        "Kerakli iborani tanlang — men darhol tarjima qilib beraman:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+async def phrase_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    try:
+        index = int(query.data.split(":")[1])
+        phrase_text = READY_PHRASES[index][0]
+    except (IndexError, ValueError):
+        await query.message.reply_text("⚠️ Ibora topilmadi, qaytadan /phrases yozing.")
+        return
+
+    result = translate(phrase_text)
+    translated_text = result["translated_text"]
+    _remember(
+        query.from_user.id, phrase_text, translated_text,
+        direction=result["direction"], engine=result["engine"], is_voice=False,
+    )
+
