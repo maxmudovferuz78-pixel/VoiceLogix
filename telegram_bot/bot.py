@@ -189,3 +189,15 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    if not history:
+        await update.message.reply_text(
+            "Hali hech narsa tarjima qilmadingiz. Menga matn yoki ovozli xabar yuboring."
+        )
+        return
+
+    lines = ["📜 *Oxirgi tarjimalaringiz:*\n"]
+    for i, item in enumerate(history, start=1):
+        lines.append(f"{i}. {item['original']}\n   → {item['translated']}\n")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
