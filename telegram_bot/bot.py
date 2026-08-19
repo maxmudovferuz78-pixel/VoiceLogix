@@ -174,3 +174,18 @@ async def phrase_button_callback(update: Update, context: ContextTypes.DEFAULT_T
         direction=result["direction"], engine=result["engine"], is_voice=False,
     )
 
+    await query.message.reply_text(f"🇺🇿 {phrase_text}\n🇺🇸 {translated_text}")
+
+
+async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    try:
+        history = get_recent_history(source="telegram", user_identifier=user_id, limit=5)
+    except Exception:
+        logger.exception("Tarixni bazadan o'qishda xatolik")
+        await update.message.reply_text(
+            "⚠️ Tarixni yuklashda xatolik yuz berdi. Birozdan so'ng qayta urinib ko'ring."
+        )
+        return
+
