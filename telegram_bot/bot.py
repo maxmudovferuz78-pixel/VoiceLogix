@@ -215,3 +215,17 @@ def main():
 
     app = Application.builder().token(bot_token).build()
 
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("phrases", phrases_command))
+    app.add_handler(CommandHandler("history", history_command))
+    app.add_handler(CallbackQueryHandler(phrase_button_callback, pattern=r"^phrase:\d+$"))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    logger.info("Bot ishga tushdi. To'xtatish uchun Ctrl+C bosing.")
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
