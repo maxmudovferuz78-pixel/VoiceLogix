@@ -201,3 +201,17 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
+
+def main():
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not bot_token:
+        raise RuntimeError(
+            "TELEGRAM_BOT_TOKEN topilmadi. Loyiha tub papkasidagi .env "
+            "faylida TELEGRAM_BOT_TOKEN=... qatorini sozlang."
+        )
+
+    logger.info("Ma'lumotlar bazasi jadvallarini tekshirilmoqda...")
+    init_db()
+
+    app = Application.builder().token(bot_token).build()
+
